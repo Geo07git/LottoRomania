@@ -1,0 +1,6 @@
+{
+  "name": "Loto România - Analiză & Predicții",
+  "description": "O aplicație completă pentru loteriile românești (Loto 6/49, Joker, Loto 5/40). Include sisteme reduse, generare de variante, statistici avansate și un analizator de bilete prin scanare CSV.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
