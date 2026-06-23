@@ -135,6 +135,14 @@ export function computeNumberStatistics(draws: LotoDraw[], totalNumbers: number)
   const stats: NumberStats[] = [];
   const totalDraws = draws.length || 1;
 
+  // Calculăm maxPossibleHotWeight pe baza lungimii reale a istoricului
+  let maxPossibleHotWeight = 0;
+  for (let i = 0; i < draws.length; i++) {
+    if (i < 10) maxPossibleHotWeight += 3;
+    else if (i < 30) maxPossibleHotWeight += 1.5;
+  }
+  if (maxPossibleHotWeight === 0) maxPossibleHotWeight = 1;
+
   for (let n = 1; n <= totalNumbers; n++) {
     let freq = 0;
     let gap = totalDraws; // default if never drawn
@@ -147,13 +155,11 @@ export function computeNumberStatistics(draws: LotoDraw[], totalNumbers: number)
         if (gap === totalDraws) {
           gap = i; // first index from start (most recent)
         }
-        // compute weighted hot score: drafts in last 10 count 3x, last 30 count 1.5x
+        // compute weighted hot score: drafts in last 10 count 3x, last 30 count 1.5x, others count 0 (since they don't affect recent trend)
         if (i < 10) {
           hotWeight += 3;
         } else if (i < 30) {
           hotWeight += 1.5;
-        } else {
-          hotWeight += 0.5;
         }
       }
     }
@@ -163,7 +169,7 @@ export function computeNumberStatistics(draws: LotoDraw[], totalNumbers: number)
       frequency: freq,
       percentage: Math.round((freq / totalDraws) * 1000) / 10,
       lastDrawnGaps: gap,
-      hotScore: Math.round((hotWeight / totalDraws) * 100)
+      hotScore: Math.round((hotWeight / maxPossibleHotWeight) * 100)
     });
   }
 
@@ -180,31 +186,31 @@ export function predictLotoNumbers(
   const size = preset.id === "loto540" ? 5 : preset.drawSize;
   const stats = computeNumberStatistics(draws, total);
   
-  // Calculate raw scores for each number
-  const scored = stats.map(s => {
-    // Freq score: normalized frequency [0, 1]
-    const maxFreq = Math.max(...stats.map(x => x.frequency)) || 1;
-    const freqScore = s.frequency / maxFreq;
-    
-    // Recency gap score: longer gaps mean "due" but we balance this
-    // A high gap can mean overdue or simply cold. In Python models, they often expect "due" numbers.
-    const maxGap = Math.max(...stats.map(x => x.lastDrawnGaps)) || 1;
-    const gapScore = s.lastDrawnGaps / maxGap; // higher means longer since drawn (more "due")
-    
-    // Trend score (recent hotness)
-    const maxHot = Math.max(...stats.map(x => x.hotScore)) || 1;
-    const trendScore = s.hotScore / maxHot;
+  // 1. Gather min and max values to perform feature scaling (Min-Max normalization)
+  // This prevents features with wide variance (like gaps) from completely dominating over features with narrow variance (like frequency in large databases)
+  const frequencies = stats.map(s => s.frequency);
+  const maxFreq = Math.max(...frequencies);
+  const minFreq = Math.min(...frequencies);
+  const freqRange = maxFreq - minFreq || 1;
 
-    // Markov state transition score
-    // Estimate likelihood of number being drawn after the most recent draw
-    let markovScore = 0.5;
+  const gaps = stats.map(s => s.lastDrawnGaps);
+  const maxGap = Math.max(...gaps);
+  const minGap = Math.min(...gaps);
+  const gapRange = maxGap - minGap || 1;
+
+  const hotScores = stats.map(s => s.hotScore);
+  const maxHot = Math.max(...hotScores);
+  const minHot = Math.min(...hotScores);
+  const hotRange = maxHot - minHot || 1;
+
+  // Compute raw Markov transition scores for all numbers first
+  const markovScoresRaw = stats.map(s => {
+    let markovScoreRaw = 0.5;
     if (draws.length > 1) {
       const lastDraw = draws[0].numbers;
-      // Find probability of s.num being drawn in drawing t+1, when lastDraw elements were active in draw t
       let transitions = 0;
       let matchedCurrent = 0;
       for (let i = 1; i < draws.length; i++) {
-        // Did any numbers of lastDraw occur in draws[i]?
         const previousDraw = draws[i].numbers;
         const intersection = previousDraw.filter(x => lastDraw.includes(x));
         if (intersection.length > 0) {
@@ -215,10 +221,33 @@ export function predictLotoNumbers(
         }
       }
       if (matchedCurrent > 0) {
-        markovScore = transitions / matchedCurrent;
+        markovScoreRaw = transitions / matchedCurrent;
       }
     }
+    return { num: s.num, score: markovScoreRaw };
+  });
 
+  const markovValues = markovScoresRaw.map(x => x.score);
+  const maxMarkov = Math.max(...markovValues);
+  const minMarkov = Math.min(...markovValues);
+  const markovRange = maxMarkov - minMarkov || 1;
+
+  // Calculate scaled scores for each number
+  const scored = stats.map(s => {
+    // Freq score: min-max scaled [0, 1]
+    const freqScore = (s.frequency - minFreq) / freqRange;
+    
+    // Gap score: min-max scaled [0, 1] (higher means longer since drawn, i.e., more overdue)
+    const gapScore = (s.lastDrawnGaps - minGap) / gapRange;
+    
+    // Trend score: min-max scaled [0, 1]
+    const trendScore = (s.hotScore - minHot) / hotRange;
+
+    // Markov score: min-max scaled [0, 1]
+    const markovRaw = markovScoresRaw.find(x => x.num === s.num)?.score ?? 0.5;
+    const markovScore = (markovRaw - minMarkov) / markovRange;
+
+    // Calculăm scorul ponderat agregat utilizând coeficienții selectați de utilizator
     const totalScored = 
       (freqScore * weights.freq) + 
       (gapScore * weights.recency) + 
@@ -231,7 +260,7 @@ export function predictLotoNumbers(
     };
   });
 
-  // Sort and select the top drawSize elements
+  // Sort and select the top drawSize elements based on our balanced model (descending score)
   scored.sort((a, b) => b.score - a.score);
   const predicted = scored.slice(0, size).map(x => x.num).sort((a, b) => a - b);
 
@@ -261,6 +290,6 @@ export function predictLotoNumbers(
   return {
     predicted,
     bonusPredicted,
-    confidence: Math.round(72 + Math.random() * 15) // high-fidelity simulated precision score
+    confidence: Math.round(72 + Math.random() * 15) // scor de încredere simulat realist
   };
 }
