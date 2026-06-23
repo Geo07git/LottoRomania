@@ -219,10 +219,10 @@ export const LotoDashboard: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl md:text-2xl font-black uppercase font-mono text-white tracking-tight leading-none italic">
-                  LOTO PROJECT V1
+                  LOTO ROMANIA 2026
                 </h1>
                 <span className="bg-[#FF6B00]/10 text-[#FF6B00] border border-[#FF6B00]/25 text-[8px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm">
-                  ML PRO
+                  AI PRO
                 </span>
               </div>
               <p className="text-[10px] tracking-widest uppercase font-mono text-white/40 mt-1">
@@ -285,7 +285,7 @@ export const LotoDashboard: React.FC = () => {
                 : "border-transparent text-white/45 hover:text-white/80"
             }`}
           >
-            <Zap className="w-4 h-4 text-[#FF6B00]" /> PROIECTE BETA (ML)
+            <Zap className="w-4 h-4 text-[#FF6B00]" /> PREDICTII BETA (AI)
           </button>
 
           <button
@@ -344,7 +344,7 @@ export const LotoDashboard: React.FC = () => {
                   <div className="absolute top-0 right-0 w-80 h-80 bg-[#FF6B00]/5 rounded-full blur-3xl pointer-events-none"></div>
                   
                   <h2 className="text-2xl font-black text-white font-mono uppercase tracking-tight mb-4 flex items-center gap-2">
-                    🎲 Bine ați venit în Loto Project v1
+                    🎲 Bine ați venit în Loto Project Romania
                   </h2>
                   <p className="text-sm text-white/70 leading-relaxed max-w-4xl">
                     Acesta este un centru modular avansat de analiză statistică și predicție bazat pe inteligență artificială, dezvoltat special pentru optimizarea biletelor loto. Folosind algoritmi de probabilitate condiționată, frecvență adaptivă și matrice de tranziție Markov, aplicația te ajută să identifici conexiuni și tipare matematice în istoricul extragerilor.

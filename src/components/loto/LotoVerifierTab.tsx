@@ -29,7 +29,7 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
 
   // Inputs
   const [userTicketString, setUserTicketString] = useState("5, 12, 19, 27, 36, 45");
-  const [minMatches, setMinMatches] = useState(4);
+  const [minMatches, setMinMatches] = useState(3);
   const [maxMatches, setMaxMatches] = useState(6);
 
   // Fallback preset database

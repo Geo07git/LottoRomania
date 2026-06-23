@@ -207,7 +207,7 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
               <Sliders className="w-5 h-5 text-[#FF6B00] mt-0.5" />
               <div>
                 <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wide">
-                  PONDERILE DE CALCUL ALE MODELULUI ML
+                  PONDERILE DE CALCUL ALE MODELULUI AI
                 </h3>
                 <p className="text-xs text-white/40 mt-0.5">
                   Ajustează coeficienții algoritmului matematic pentru a recalcula instant prognozele optime.
@@ -327,7 +327,7 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
           {/* Real-time Historic Draws Table */}
           <div className="bg-[#0A0A0B] border border-white/10 rounded-lg p-5 flex-1 flex flex-col overflow-hidden max-h-[400px]">
             <h3 className="text-xs font-extrabold text-white font-mono uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <Hash className="w-4 h-4 text-[#FF6B00]" /> LISTĂ ISTORIC EXTRACT (LIVE)
+              <Hash className="w-4 h-4 text-[#FF6B00]" /> LISTĂ ISTORIC EXTRAGERI (LIVE)
             </h3>
             <div className="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
               {activeDraws.slice(0, 15).map((draw, idx) => {

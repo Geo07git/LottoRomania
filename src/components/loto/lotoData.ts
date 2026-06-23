@@ -63,11 +63,11 @@ export const LOTO_PRESETS: Record<LotoGame, LotoPreset> = {
   },
   loto540: {
     id: "loto540",
-    name: "Loto 5/40 (6/40)",
+    name: "Loto 5/40 (România)",
     country: "România 🇷🇴",
     totalNumbers: 40,
     drawSize: 6,
-    description: "Se extrag 6 numere dintr-un total de 40 posibile. Categoriile excelente de premiere oferă șanse crescute de reușită.",
+    description: "Extragere duală joi și duminică.Se extrag 6 numere dintr-un total de 40 posibile. Mai puțin popular decât Loto 6/49, dar oferă șanse mai bune de câștig.",
     sampleDraws: [
       { round: "Tragerea #654", date: "2026-06-21 18:30", numbers: [3, 9, 14, 23, 31, 38] },
       { round: "Tragerea #653", date: "2026-06-18 18:30", numbers: [1, 7, 12, 19, 28, 35] },
