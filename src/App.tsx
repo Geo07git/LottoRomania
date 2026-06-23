@@ -8,7 +8,7 @@ import { LotoDashboard } from "./components/loto/LotoDashboard";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-[#050506] text-[#F5F5F5] flex flex-col font-sans transition-colors duration-300">
+    <div className="h-screen w-full bg-[#050506] text-[#F5F5F5] flex flex-col font-sans transition-colors duration-300">
       <LotoDashboard />
     </div>
   );
