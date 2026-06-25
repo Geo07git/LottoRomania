@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   LOTO_PRESETS, 
   generateMockHistory, 
@@ -39,6 +39,41 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
     markov: 20,
     trend: 10
   });
+  const [appliedWeights, setAppliedWeights] = useState({
+    freq: 35,
+    recency: 35,
+    markov: 20,
+    trend: 10
+  });
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  const hasChanges = useMemo(() => {
+    return (
+      modelWeights.freq !== appliedWeights.freq ||
+      modelWeights.recency !== appliedWeights.recency ||
+      modelWeights.markov !== appliedWeights.markov ||
+      modelWeights.trend !== appliedWeights.trend
+    );
+  }, [modelWeights, appliedWeights]);
+
+  const handleRecalculate = () => {
+    setIsRecalculating(true);
+    setTimeout(() => {
+      setAppliedWeights(modelWeights);
+      setIsRecalculating(false);
+    }, 650);
+  };
+
+  const handleResetWeights = () => {
+    const defaults = { freq: 35, recency: 35, markov: 20, trend: 10 };
+    setModelWeights(defaults);
+    setAppliedWeights(defaults);
+  };
+
+  // Auto-update applied weights when selectedGame changes to keep it seamless
+  useEffect(() => {
+    setAppliedWeights(modelWeights);
+  }, [selectedGame]);
 
   const preset = LOTO_PRESETS[selectedGame];
   
@@ -70,15 +105,15 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
   // Make prediction
   const predictionResult = useMemo(() => {
     // Normalise weights to sum to 1.0
-    const totalWeights = modelWeights.freq + modelWeights.recency + modelWeights.markov + modelWeights.trend || 1;
+    const totalWeights = appliedWeights.freq + appliedWeights.recency + appliedWeights.markov + appliedWeights.trend || 1;
     const normWeights = {
-      freq: modelWeights.freq / totalWeights,
-      recency: modelWeights.recency / totalWeights,
-      markov: modelWeights.markov / totalWeights,
-      trend: modelWeights.trend / totalWeights
+      freq: appliedWeights.freq / totalWeights,
+      recency: appliedWeights.recency / totalWeights,
+      markov: appliedWeights.markov / totalWeights,
+      trend: appliedWeights.trend / totalWeights
     };
     return predictLotoNumbers(activeDraws, preset, normWeights);
-  }, [activeDraws, preset, modelWeights]);
+  }, [activeDraws, preset, appliedWeights]);
 
   return (
     <div className="space-y-6" id="predictions-engine">
@@ -147,37 +182,56 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
               <span className="text-[10px] font-mono tracking-[0.25em] text-white/45 block uppercase">
                 🎯 COMBINAȚIE OPTIMĂ PREZISĂ DE MODEL:
               </span>
-              <div className="flex flex-wrap gap-2.5">
-                {predictionResult.predicted.map((num) => {
-                  const wasJustDrawn = activeDraws[0]?.numbers.includes(num);
-                  return (
-                    <div 
-                      key={num} 
-                      className={`w-12 h-12 md:w-14 md:h-14 flex flex-col items-center justify-center font-bold font-mono border text-lg md:text-xl transition-all duration-300 relative group rounded-md ${
-                        wasJustDrawn 
-                          ? "bg-[#FF6B00]/15 border-[#FF6B00] text-white" 
-                          : "bg-[#1C1C1E] border-white/15 text-white/90 hover:border-white/40"
-                      }`}
+              <div className="relative min-h-[56px] md:min-h-[64px]">
+                <AnimatePresence mode="wait">
+                  {isRecalculating && (
+                    <motion.div 
+                      key="recalc-loader"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-[#121214]/80 backdrop-blur-[2px] flex items-center justify-center z-10 gap-2 rounded border border-[#FF6B00]/10"
                     >
-                      <span>{num}</span>
-                      {wasJustDrawn && (
-                        <span className="absolute bottom-0.5 text-[8px] font-sans text-[#FF6B00] leading-none uppercase tracking-widest scale-90 font-semibold mb-0.5">
-                          Ultim
-                        </span>
-                      )}
+                      <Zap className="w-5 h-5 text-[#FF6B00] animate-bounce" />
+                      <span className="text-xs font-mono text-white/90 font-bold uppercase tracking-wider animate-pulse">
+                        RULARE ALGORITM ML...
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className={`flex flex-wrap gap-2.5 transition-all duration-300 ${isRecalculating ? "blur-[3px] scale-98 select-none" : ""}`}>
+                  {predictionResult.predicted.map((num) => {
+                    const wasJustDrawn = activeDraws[0]?.numbers.includes(num);
+                    return (
+                      <div 
+                        key={num} 
+                        className={`w-12 h-12 md:w-14 md:h-14 flex flex-col items-center justify-center font-bold font-mono border text-lg md:text-xl transition-all duration-300 relative group rounded-md ${
+                          wasJustDrawn 
+                            ? "bg-[#FF6B00]/15 border-[#FF6B00] text-white" 
+                            : "bg-[#1C1C1E] border-white/15 text-white/90 hover:border-white/40"
+                        }`}
+                      >
+                        <span>{num}</span>
+                        {wasJustDrawn && (
+                          <span className="absolute bottom-0.5 text-[8px] font-sans text-[#FF6B00] leading-none uppercase tracking-widest scale-90 font-semibold mb-0.5">
+                            Ultim
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Visual extra ball for the Bonus system (Numerone / Putto B fields) */}
+                  {predictionResult.bonusPredicted !== undefined && (
+                    <div className="w-12 h-12 md:w-14 md:h-14 flex flex-col items-center justify-center border bg-gradient-to-br from-[#FF6B00] to-amber-600 border-[#FF6B00] text-white font-bold font-mono text-lg md:text-xl relative rounded-md shadow-lg shadow-[#FF6B00]/20">
+                      <span>{predictionResult.bonusPredicted}</span>
+                      <span className="absolute bottom-0.5 text-[8px] leading-none font-sans uppercase tracking-widest scale-90 font-bold mb-0.5">
+                        Bonus
+                      </span>
                     </div>
-                  );
-                })}
-                
-                {/* Visual extra ball for the Bonus system (Numerone / Putto B fields) */}
-                {predictionResult.bonusPredicted !== undefined && (
-                  <div className="w-12 h-12 md:w-14 md:h-14 flex flex-col items-center justify-center border bg-gradient-to-br from-[#FF6B00] to-amber-600 border-[#FF6B00] text-white font-bold font-mono text-lg md:text-xl relative rounded-md shadow-lg shadow-[#FF6B00]/20">
-                    <span>{predictionResult.bonusPredicted}</span>
-                    <span className="absolute bottom-0.5 text-[8px] leading-none font-sans uppercase tracking-widest scale-90 font-bold mb-0.5">
-                      Bonus
-                    </span>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
@@ -207,7 +261,7 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
               <Sliders className="w-5 h-5 text-[#FF6B00] mt-0.5" />
               <div>
                 <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wide">
-                  PONDERILE DE CALCUL ALE MODELULUI AI
+                  PONDERILE DE CALCUL ALE MODELULUI ML
                 </h3>
                 <p className="text-xs text-white/40 mt-0.5">
                   Ajustează coeficienții algoritmului matematic pentru a recalcula instant prognozele optime.
@@ -280,6 +334,38 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
                 <span className="text-[10px] text-white/35 font-mono block">Cântărește recurența agresivă în ultimele 10 extrageri</span>
               </div>
             </div>
+
+            {/* Indicator modification alerts */}
+            {hasChanges && (
+              <div className="mt-5 p-3 bg-[#FF6B00]/5 border border-[#FF6B00]/20 text-[11px] text-white/80 font-mono text-center flex items-center justify-center gap-2 rounded">
+                <Info className="w-3.5 h-3.5 text-[#FF6B00] animate-bounce" />
+                <span>Ponderile au fost modificate. Apasă pe „Recalculează Proiecția” pentru a rula modelul!</span>
+              </div>
+            )}
+
+            <div className="mt-5 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <button
+                onClick={handleResetWeights}
+                className="px-4 py-2 border border-white/10 text-white/60 hover:text-white hover:bg-white/5 text-xs font-mono font-bold transition-all uppercase flex items-center justify-center gap-1.5 cursor-pointer rounded"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reinițializare
+              </button>
+
+              <button
+                onClick={handleRecalculate}
+                disabled={isRecalculating}
+                className={`px-5 py-2.5 font-mono font-bold text-xs uppercase tracking-wide flex items-center justify-center gap-2 transition-all duration-300 rounded cursor-pointer ${
+                  isRecalculating 
+                    ? "bg-[#1C1C1E] text-white/40 border border-white/10 cursor-not-allowed"
+                    : hasChanges
+                      ? "bg-[#FF6B00] text-white hover:bg-[#FF6B00]/90 shadow-md shadow-[#FF6B00]/25 border border-[#FF6B00] animate-pulse"
+                      : "bg-[#18181A] border border-[#FF6B00]/40 text-white hover:bg-[#FF6B00]/10"
+                }`}
+              >
+                <Zap className={`w-3.5 h-3.5 ${isRecalculating ? "animate-spin" : ""}`} />
+                {isRecalculating ? "Se Recalculează..." : "Recalculează Proiecția"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -327,7 +413,7 @@ export const LotoPredictorsTab: React.FC<LotoPredictorsTabProps> = ({
           {/* Real-time Historic Draws Table */}
           <div className="bg-[#0A0A0B] border border-white/10 rounded-lg p-5 flex-1 flex flex-col overflow-hidden max-h-[400px]">
             <h3 className="text-xs font-extrabold text-white font-mono uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <Hash className="w-4 h-4 text-[#FF6B00]" /> LISTĂ ISTORIC EXTRAGERI (LIVE)
+              <Hash className="w-4 h-4 text-[#FF6B00]" /> LISTĂ ISTORIC EXTRACT (LIVE)
             </h3>
             <div className="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
               {activeDraws.slice(0, 15).map((draw, idx) => {
