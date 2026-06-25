@@ -29,8 +29,27 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
 
   // Inputs
   const [userTicketString, setUserTicketString] = useState("5, 12, 19, 27, 36, 45");
-  const [minMatches, setMinMatches] = useState(3);
+  const [minMatches, setMinMatches] = useState(4);
   const [maxMatches, setMaxMatches] = useState(6);
+  const [userBonusNumber, setUserBonusNumber] = useState<number>(12);
+
+  // Sync inputs with active game preset
+  React.useEffect(() => {
+    if (activeGamePreset === "joker") {
+      setUserTicketString("4, 11, 23, 31, 40");
+      setUserBonusNumber(12);
+      setMinMatches(2);
+      setMaxMatches(5);
+    } else if (activeGamePreset === "loto540") {
+      setUserTicketString("3, 9, 14, 23, 31, 38");
+      setMinMatches(3);
+      setMaxMatches(5);
+    } else {
+      setUserTicketString("5, 12, 19, 27, 36, 45");
+      setMinMatches(3);
+      setMaxMatches(6);
+    }
+  }, [activeGamePreset]);
 
   // Fallback preset database
   const presetDraws = useMemo(() => {
@@ -111,30 +130,81 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
 
     if (parsedUserNumbers.length === 0) return { counts: {}, totalMatches: 0, items: [] };
 
-    const counts: Record<number, number> = {};
-    for (let i = minMatches; i <= maxMatches; i++) {
-      counts[i] = 0;
-    }
-
-    const matchedDrawsList: Array<{ draw: LotoDraw; count: number }> = [];
+    const counts: Record<string, number> = {};
+    const matchedDrawsList: Array<{ draw: LotoDraw; count: number; jokerMatched?: boolean; label: string }> = [];
     let totalMatchesCount = 0;
 
-    targetDraws.forEach(draw => {
-      // Find intersection count between player ticket and historical drawn numbers
-      const intersectCount = draw.numbers.filter(num => parsedUserNumbers.includes(num)).length;
-      if (intersectCount >= minMatches && intersectCount <= maxMatches) {
-        counts[intersectCount] = (counts[intersectCount] || 0) + 1;
-        totalMatchesCount++;
-        matchedDrawsList.push({ draw, count: intersectCount });
+    if (activeGamePreset === "joker") {
+      // Standard Joker categories
+      const jokerCategories = [
+        "5 + Joker",
+        "5",
+        "4 + Joker",
+        "4",
+        "3 + Joker",
+        "3",
+        "2 + Joker",
+        "1 + Joker"
+      ];
+      jokerCategories.forEach(cat => {
+        counts[cat] = 0;
+      });
+
+      targetDraws.forEach(draw => {
+        const intersectCount = draw.numbers.filter(num => parsedUserNumbers.includes(num)).length;
+        const jokerMatched = draw.bonus !== undefined && draw.bonus === userBonusNumber;
+
+        let label = "";
+        if (intersectCount === 5) {
+          label = jokerMatched ? "5 + Joker" : "5";
+        } else if (intersectCount === 4) {
+          label = jokerMatched ? "4 + Joker" : "4";
+        } else if (intersectCount === 3) {
+          label = jokerMatched ? "3 + Joker" : "3";
+        } else if (intersectCount === 2 && jokerMatched) {
+          label = "2 + Joker";
+        } else if (intersectCount === 1 && jokerMatched) {
+          label = "1 + Joker";
+        }
+
+        if (label) {
+          counts[label] = (counts[label] || 0) + 1;
+          totalMatchesCount++;
+          matchedDrawsList.push({ draw, count: intersectCount, jokerMatched, label });
+        }
+      });
+    } else {
+      // For loto649 and loto540
+      for (let i = minMatches; i <= maxMatches; i++) {
+        counts[String(i)] = 0;
       }
-    });
+
+      targetDraws.forEach(draw => {
+        const intersectCount = draw.numbers.filter(num => parsedUserNumbers.includes(num)).length;
+        if (intersectCount >= minMatches && intersectCount <= maxMatches) {
+          counts[String(intersectCount)] = (counts[String(intersectCount)] || 0) + 1;
+          totalMatchesCount++;
+          matchedDrawsList.push({ draw, count: intersectCount, label: `${intersectCount} numere` });
+        }
+      });
+    }
 
     return {
       counts,
       totalMatches: totalMatchesCount,
-      items: matchedDrawsList.sort((a, b) => b.count - a.count)
+      items: matchedDrawsList.sort((a, b) => {
+        if (activeGamePreset === "joker") {
+          if (a.count !== b.count) {
+            return b.count - a.count;
+          }
+          if (a.jokerMatched && !b.jokerMatched) return -1;
+          if (!a.jokerMatched && b.jokerMatched) return 1;
+          return 0;
+        }
+        return b.count - a.count;
+      })
     };
-  }, [userTicketString, targetDraws, minMatches, maxMatches]);
+  }, [userTicketString, targetDraws, minMatches, maxMatches, activeGamePreset, userBonusNumber]);
 
   return (
     <div className="space-y-6" id="loto-verifier">
@@ -239,44 +309,66 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
             </h3>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-white/60 mb-2 font-mono uppercase font-bold">
-                  Numerele Tale jucate (separate prin virgulă)
-                </label>
-                <input 
-                  type="text" 
-                  value={userTicketString}
-                  onChange={(e) => setUserTicketString(e.target.value)}
-                  placeholder="Ex: 1, 3, 5, 8, 12, 19"
-                  className="w-full bg-[#121214] border border-white/10 p-2.5 text-sm font-semibold font-mono text-white outline-none focus:border-[#FF6B00] rounded"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pb-3">
-                <div className="space-y-1.5">
-                  <span className="text-[10px] text-white/50 font-mono uppercase tracking-wide">Minim de Potriviri</span>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className={activeGamePreset === "joker" ? "md:col-span-8" : "md:col-span-12"}>
+                  <label className="block text-xs text-white/60 mb-2 font-mono uppercase font-bold">
+                    {activeGamePreset === "joker" 
+                      ? "Cele 5 numere principale (separate prin virgulă)" 
+                      : "Numerele Tale jucate (separate prin virgulă)"}
+                  </label>
                   <input 
-                    type="number" 
-                    min={1} 
-                    max={12} 
-                    value={minMatches}
-                    onChange={(e) => setMinMatches(parseInt(e.target.value) || 1)}
-                    className="w-full bg-[#121214] border border-white/10 p-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[#FF6B00] rounded"
+                    type="text" 
+                    value={userTicketString}
+                    onChange={(e) => setUserTicketString(e.target.value)}
+                    placeholder={activeGamePreset === "joker" ? "Ex: 4, 11, 23, 31, 40" : "Ex: 1, 3, 5, 8, 12, 19"}
+                    className="w-full bg-[#121214] border border-white/10 p-2.5 text-sm font-semibold font-mono text-white outline-none focus:border-[#FF6B00] rounded"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <span className="text-[10px] text-white/50 font-mono uppercase tracking-wide">Maxim de Potriviri</span>
-                  <input 
-                    type="number" 
-                    min={minMatches} 
-                    max={12} 
-                    value={maxMatches}
-                    onChange={(e) => setMaxMatches(Math.max(minMatches, parseInt(e.target.value) || minMatches))}
-                    className="w-full bg-[#121214] border border-white/10 p-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[#FF6B00] rounded"
-                  />
-                </div>
+                {activeGamePreset === "joker" && (
+                  <div className="md:col-span-4">
+                    <label className="block text-xs text-white/60 mb-2 font-mono uppercase font-bold">
+                      Bilă Joker (1-20)
+                    </label>
+                    <input 
+                      type="number" 
+                      min={1}
+                      max={20}
+                      value={userBonusNumber}
+                      onChange={(e) => setUserBonusNumber(parseInt(e.target.value) || 12)}
+                      className="w-full bg-[#121214] border border-white/10 p-2.5 text-sm font-semibold font-mono text-white outline-none focus:border-[#FF6B00] rounded"
+                    />
+                  </div>
+                )}
               </div>
+
+              {activeGamePreset !== "joker" && (
+                <div className="grid grid-cols-2 gap-3 pb-3">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-white/50 font-mono uppercase tracking-wide">Minim de Potriviri</span>
+                    <input 
+                      type="number" 
+                      min={1} 
+                      max={12} 
+                      value={minMatches}
+                      onChange={(e) => setMinMatches(parseInt(e.target.value) || 1)}
+                      className="w-full bg-[#121214] border border-white/10 p-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[#FF6B00] rounded"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-white/50 font-mono uppercase tracking-wide">Maxim de Potriviri</span>
+                    <input 
+                      type="number" 
+                      min={minMatches} 
+                      max={12} 
+                      value={maxMatches}
+                      onChange={(e) => setMaxMatches(Math.max(minMatches, parseInt(e.target.value) || minMatches))}
+                      className="w-full bg-[#121214] border border-white/10 p-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[#FF6B00] rounded"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -301,24 +393,41 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
             {/* Match breakdowns list matching Streamlit results display */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {Object.entries(matchResults.counts)
-                .map(([matchCount, occurrences]) => ({
-                  hits: parseInt(matchCount),
+                .map(([label, occurrences]) => ({
+                  label,
                   count: Number(occurrences)
                 }))
-                .sort((a, b) => b.hits - a.hits)
-                .map(({ hits, count }) => {
-                  const percentage = Math.round((count / targetDraws.length) * 100);
+                .sort((a, b) => {
+                  if (activeGamePreset === "joker") {
+                    const order = [
+                      "5 + Joker",
+                      "5",
+                      "4 + Joker",
+                      "4",
+                      "3 + Joker",
+                      "3",
+                      "2 + Joker",
+                      "1 + Joker"
+                    ];
+                    return order.indexOf(a.label) - order.indexOf(b.label);
+                  }
+                  return parseInt(b.label) - parseInt(a.label);
+                })
+                .map(({ label, count }) => {
+                  const percentage = Math.round((count / targetDraws.length) * 1000) / 10;
                   return (
-                    <div key={hits} className="p-3.5 bg-[#121214] border border-white/5 rounded-md relative overflow-hidden">
+                    <div key={label} className="p-3.5 bg-[#121214] border border-white/5 rounded-md relative overflow-hidden">
                       <div className="flex justify-between items-center font-mono">
-                        <span className="text-xs font-bold text-white">{hits} numere potrivite</span>
+                        <span className="text-xs font-bold text-white">
+                          {activeGamePreset === "joker" ? label : `${label} numere potrivite`}
+                        </span>
                         <span className="text-[#FF6B00] font-black text-sm">{count} ori</span>
                       </div>
                       
                       <div className="w-full bg-[#1C1C1E] h-1.5 mt-2.5 rounded-none relative">
                         <div 
                           className="bg-gradient-to-r from-[#FF6B00] to-amber-500 h-full transition-all duration-500" 
-                          style={{ width: `${Math.min(100, Math.max(2, percentage))}%` }}
+                          style={{ width: `${Math.min(100, Math.max(1, percentage))}%` }}
                         ></div>
                       </div>
                       <span className="text-[10px] text-white/35 font-mono block mt-1">Rată succese: {percentage}%</span>
@@ -331,7 +440,10 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
             {matchResults.items.length > 0 && (
               <div className="flex-1 flex flex-col overflow-hidden max-h-[280px]">
                 <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase block mb-3">
-                  📋 Lista draws cu potriviri în intervalul ({minMatches} - {maxMatches} numere):
+                  {activeGamePreset === "joker" 
+                    ? "📋 Lista tragerilor cu potriviri Joker (grupate după performanță):" 
+                    : `📋 Lista tragerilor cu potriviri în intervalul (${minMatches} - ${maxMatches} numere):`
+                  }
                 </span>
                 
                 <div className="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
@@ -361,11 +473,26 @@ export const LotoVerifierTab: React.FC<LotoVerifierTabProps> = ({
                             </span>
                           );
                         })}
+                        {draw.bonus !== undefined && (
+                          <span 
+                            className={`w-5 h-5 flex items-center justify-center font-mono text-[9px] font-bold rounded-sm border ${
+                              draw.bonus === userBonusNumber 
+                                ? "bg-gradient-to-br from-[#FF6B00] to-amber-600 text-white border-[#FF6B00] shadow-md shadow-[#FF6B00]/25" 
+                                : "bg-[#FF6B00]/10 text-[#FF6B00] border-[#FF6B00]/20"
+                            }`}
+                            title="Număr Joker"
+                          >
+                            {draw.bonus}
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-right">
                         <span className="text-xs font-mono font-extrabold text-[#FF6B00]">
-                          +{count} hits
+                          {activeGamePreset === "joker" 
+                            ? `${count} + ${draw.bonus === userBonusNumber ? "1 Joker" : "0"}` 
+                            : `+${count} hits`
+                          }
                         </span>
                       </div>
                     </div>
